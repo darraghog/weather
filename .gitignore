@@ -8,3 +8,32 @@ wheels/
 
 # Virtual environments
 .venv
+
+# ngrok
+ngrok
+ngrok.exe
+ngrok-*.tgz
+ngrok.yml
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
