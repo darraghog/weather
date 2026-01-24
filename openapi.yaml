@@ -1,0 +1,111 @@
+openapi: 3.0.0
+info:
+  title: Weather MCP Server API
+  description: Worldwide weather forecasts and US weather alerts. Uses National Weather Service for US locations and Open-Meteo for international locations.
+  version: 2.0.0
+servers:
+  - url: https://carole-unrealizable-thermochemically.ngrok-free.dev
+    description: Permanent ngrok domain
+
+paths:
+  /api/alerts:
+    post:
+      summary: Get weather alerts for a US state
+      operationId: getAlerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - state
+              properties:
+                state:
+                  type: string
+                  description: Two-letter US state code (e.g., CA, NY, TX)
+                  example: "CA"
+                  minLength: 2
+                  maxLength: 2
+      responses:
+        '200':
+          description: Weather alerts for the state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: Formatted weather alerts
+        '400':
+          description: Invalid state code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /api/forecast:
+    post:
+      summary: Get weather forecast for any location worldwide
+      operationId: getForecast
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                city:
+                  type: string
+                  description: City name (any city worldwide). Can be from the available cities list or any location that can be geocoded.
+                  example: "San Francisco, CA"
+                latitude:
+                  type: number
+                  description: Latitude coordinate (-90 to 90)
+                  example: 37.7749
+                longitude:
+                  type: number
+                  description: Longitude coordinate (-180 to 180)
+                  example: -122.4194
+      responses:
+        '200':
+          description: Weather forecast for the location
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: Formatted weather forecast
+        '400':
+          description: Invalid coordinates or city not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /api/cities:
+    get:
+      summary: Get list of all available cities
+      operationId: getCities
+      responses:
+        '200':
+          description: List of available cities with coordinates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cities:
+                    type: array
+                    items:
+                      type: string
+                    description: Sorted list of city names
