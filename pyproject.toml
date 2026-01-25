@@ -8,6 +8,10 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.9.1",
     "flask>=3.0.0",
+    "asgiref>=3.8.0",
+    "starlette>=0.46.0",
+    "uvicorn>=0.34.0",
+    "ollmcp>=0.14.0",
 ]
 
 [project.optional-dependencies]

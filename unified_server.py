@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Web GUI for the Weather MCP Server."""
+"""Unified server combining Flask web GUI and MCP SSE endpoint."""
 
 import asyncio
 from typing import Any, Coroutine
-from flask import Flask, render_template, request, jsonify, Response
-from weather import get_alerts, get_forecast
+from flask import Flask, render_template, request, jsonify
+from weather import get_alerts, get_forecast, mcp as weather_mcp
 from cities import get_all_cities, get_city_coordinates
+from asgiref.wsgi import WsgiToAsgi
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
-app = Flask(__name__)
+# Create Flask app
+flask_app = Flask(__name__)
 
 def run_async(coro: Coroutine) -> Any:
     """Run an async coroutine in a new event loop (for Flask sync context).
@@ -25,12 +31,12 @@ def run_async(coro: Coroutine) -> Any:
     finally:
         loop.close()
 
-@app.route('/')
+@flask_app.route('/')
 def index():
     """Serve the main web interface."""
     return render_template('index.html')
 
-@app.route('/api/alerts', methods=['POST'])
+@flask_app.route('/api/alerts', methods=['POST'])
 def api_alerts():
     """API endpoint for weather alerts."""
     try:
@@ -46,7 +52,7 @@ def api_alerts():
     except Exception as e:
         return jsonify({'error': f'Error fetching alerts: {str(e)}'}), 500
 
-@app.route('/api/cities', methods=['GET'])
+@flask_app.route('/api/cities', methods=['GET'])
 def api_cities():
     """API endpoint to get all available cities."""
     try:
@@ -55,7 +61,7 @@ def api_cities():
     except Exception as e:
         return jsonify({'error': f'Error fetching cities: {str(e)}'}), 500
 
-@app.route('/api/city-coordinates', methods=['POST'])
+@flask_app.route('/api/city-coordinates', methods=['POST'])
 def api_city_coordinates():
     """API endpoint to get coordinates for a specific city."""
     try:
@@ -80,7 +86,7 @@ def api_city_coordinates():
     except Exception as e:
         return jsonify({'error': f'Error fetching coordinates: {str(e)}'}), 500
 
-@app.route('/api/forecast', methods=['POST'])
+@flask_app.route('/api/forecast', methods=['POST'])
 def api_forecast():
     """API endpoint for weather forecast."""
     try:
@@ -131,5 +137,32 @@ def api_forecast():
     except Exception as e:
         return jsonify({'error': f'Error fetching forecast: {str(e)}'}), 500
 
+# Convert Flask app to ASGI
+wsgi_app = WsgiToAsgi(flask_app)
+
+# Get MCP SSE app - it has routes at /sse and /messages
+mcp_app = weather_mcp.sse_app()
+
+# Create combined Starlette app
+# Mount MCP app at root so /sse and /messages are accessible
+# Then mount Flask app to catch remaining routes
+middleware = [
+    Middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+]
+
+# Merge the routes from mcp_app with a Mount for wsgi_app
+from starlette.routing import Route
+
+app = Starlette(
+    routes=mcp_app.routes + [Mount("/", wsgi_app)],
+    middleware=middleware,
+)
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=5000)

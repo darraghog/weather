@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "weather-local": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "weather.py"
+      ],
+      "env": {}
+    },
+    "weather-remote": {
+      "url": "https://carole-unrealizable-thermochemically.ngrok-free.dev/sse",
+      "transport": "sse"
+    }
+  }
+}
