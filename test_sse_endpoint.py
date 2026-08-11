@@ -1,33 +1,54 @@
-#!/usr/bin/env python3
-"""Test script to verify the SSE endpoint is accessible."""
+"""Tests for the MCP tool layer exposed over SSE (unified_server.py mounts
+weather.mcp.sse_app()).
 
-import asyncio
+Rather than requiring a live server and a real SSE connection, these tests
+exercise the same FastMCP tool-dispatch path (registration + `call_tool`)
+in-process. That's what actually matters for correctness; the raw SSE
+transport plumbing is framework code (Starlette/FastMCP), not app logic.
+"""
 import httpx
 
-async def test_sse_endpoint():
-    """Test the SSE endpoint."""
-    url = "http://localhost:5000/sse"
+from weather import mcp
 
-    print(f"Testing SSE endpoint at {url}...")
 
-    async with httpx.AsyncClient() as client:
-        try:
-            # Test basic connectivity
-            response = await client.get(url, timeout=5.0)
-            print(f"Status Code: {response.status_code}")
-            print(f"Headers: {response.headers}")
+class TestToolRegistration:
+    async def test_expected_tools_are_registered(self):
+        tools = await mcp.list_tools()
+        tool_names = {tool.name for tool in tools}
 
-            if response.status_code == 200:
-                print("✓ SSE endpoint is accessible!")
-            else:
-                print(f"✗ Unexpected status code: {response.status_code}")
-                print(f"Response: {response.text[:200]}")
+        assert "get_alerts" in tool_names
+        assert "get_forecast" in tool_names
 
-        except httpx.ConnectError:
-            print("✗ Connection failed. Is the server running?")
-            print("  Start the server with: ./start_server.sh")
-        except Exception as e:
-            print(f"✗ Error: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(test_sse_endpoint())
+class TestToolDispatch:
+    async def test_call_tool_get_alerts(self, mock_nws_alerts):
+        mock_nws_alerts(state="NY", features=[])
+
+        result = await mcp.call_tool("get_alerts", {"state": "NY"})
+
+        assert len(result) == 1
+        assert result[0].text == "No active alerts for this state."
+
+    async def test_call_tool_get_forecast(self, mock_nws_forecast):
+        mock_nws_forecast(
+            40.7128,
+            -74.0060,
+            periods=[
+                {
+                    "name": "This Afternoon",
+                    "temperature": 75,
+                    "temperatureUnit": "F",
+                    "windSpeed": "12 mph",
+                    "windDirection": "S",
+                    "detailedForecast": "Partly sunny.",
+                }
+            ],
+        )
+
+        result = await mcp.call_tool(
+            "get_forecast", {"latitude": 40.7128, "longitude": -74.0060}
+        )
+
+        assert len(result) == 1
+        assert "This Afternoon" in result[0].text
+        assert "Partly sunny." in result[0].text

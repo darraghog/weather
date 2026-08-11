@@ -3,24 +3,13 @@
 
 import pytest
 import json
-from web_server import app
 from cities import DYNAMIC_CITIES
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the Flask app."""
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
-
-
-@pytest.fixture(autouse=True)
-def clear_dynamic_cities():
-    """Clear dynamic cities before each test."""
-    DYNAMIC_CITIES.clear()
-    yield
-    DYNAMIC_CITIES.clear()
+def client(web_server_client):
+    """Alias for the shared web_server_client fixture (kept for readability below)."""
+    return web_server_client
 
 
 class TestWebIntegration:
@@ -42,9 +31,11 @@ class TestWebIntegration:
         assert 'Tokyo, Japan' in cities
         assert 'Summit, NJ' in cities
 
-    def test_forecast_adds_city_to_dynamic_list(self, client):
+    def test_forecast_adds_city_to_dynamic_list(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test that requesting forecast for new city adds it to the list."""
         test_city = "Lillehammer, Norway"
+        mock_geocode(lat=61.1153, lon=10.4662)
+        mock_open_meteo_forecast()
 
         # Get initial cities list
         response1 = client.get('/api/cities')
@@ -69,9 +60,10 @@ class TestWebIntegration:
         updated_cities = json.loads(response3.data)['cities']
         assert test_city in updated_cities
 
-    def test_city_coordinates_endpoint_adds_to_list(self, client):
+    def test_city_coordinates_endpoint_adds_to_list(self, client, mock_geocode):
         """Test that /api/city-coordinates adds new cities to the list."""
         test_city = "Arendal, Norway"
+        mock_geocode(lat=58.4614, lon=8.7726)
 
         # Get initial list
         response1 = client.get('/api/cities')
@@ -95,13 +87,15 @@ class TestWebIntegration:
         updated_cities = json.loads(response3.data)['cities']
         assert test_city in updated_cities
 
-    def test_multiple_cities_added_dynamically(self, client):
+    def test_multiple_cities_added_dynamically(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test that multiple dynamically added cities all appear in the list."""
         test_cities = [
             "Drammen, Norway",
             "Kristiansand, Norway",
             "Haugesund, Norway"
         ]
+        mock_geocode()
+        mock_open_meteo_forecast()
 
         # Add cities via forecast requests
         for city in test_cities:
@@ -118,9 +112,11 @@ class TestWebIntegration:
         for city in test_cities:
             assert city in all_cities, f"{city} should be in cities list"
 
-    def test_second_request_not_marked_as_new(self, client):
+    def test_second_request_not_marked_as_new(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test that a city is not marked as new on the second request."""
         test_city = "Alesund, Norway"
+        mock_geocode(lat=62.4722, lon=6.1495)
+        mock_open_meteo_forecast()
 
         # First request
         response1 = client.post(
@@ -157,9 +153,11 @@ class TestWebIntegration:
 class TestDropdownIntegration:
     """Test that the dropdown will show dynamically added cities."""
 
-    def test_dynamic_city_available_for_dropdown(self, client):
+    def test_dynamic_city_available_for_dropdown(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test end-to-end: Add city, verify it's in /api/cities for dropdown."""
         test_city = "Molde, Norway"
+        mock_geocode(lat=62.7372, lon=7.1607)
+        mock_open_meteo_forecast()
 
         # Step 1: User enters new city in web form (simulated by forecast request)
         response1 = client.post(

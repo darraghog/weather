@@ -1,52 +1,67 @@
-#!/usr/bin/env python3
-"""Test script for the updated web server with city lookup."""
+"""Tests for the city-lookup -> forecast chain (cities.py + weather.py together).
 
-import asyncio
+Covers get_all_cities()/get_city_coordinates() for known static cities, and
+the end-to-end flow of geocoding an unknown city and then fetching its
+forecast - the path web_server.py's /api/forecast route relies on.
+All network calls are mocked via respx fixtures from conftest.py.
+"""
 from cities import get_all_cities, get_city_coordinates
+from weather import get_forecast
 
-async def test_city_lookup():
-    """Test the city lookup functionality."""
-    print("Testing city lookup functionality...\n")
-    
-    # Test getting all cities
-    cities = get_all_cities()
-    print(f"Total cities loaded: {len(cities)}")
-    print("First 10 cities:")
-    for city in cities[:10]:
-        print(f"  - {city}")
-    
-    print("\n" + "="*50 + "\n")
-    
-    # Test specific city lookups
-    test_cities = [
-        "San Francisco, CA",
-        "London, UK", 
-        "Tokyo, Japan",
-        "Sydney, Australia",
-        "New York City, NY"
-    ]
-    
-    print("Testing specific city coordinates:")
-    for city in test_cities:
-        coords = get_city_coordinates(city)
-        if coords:
-            lat, lng = coords
-            print(f"  {city}: {lat}, {lng}")
-        else:
-            print(f"  {city}: NOT FOUND")
-    
-    print("\n" + "="*50 + "\n")
-    
-    # Test forecast with city lookup
-    from weather import get_forecast
-    
-    print("Testing forecast with San Francisco coordinates:")
-    sf_coords = get_city_coordinates("San Francisco, CA")
-    if sf_coords:
-        lat, lng = sf_coords
+
+class TestCityLookup:
+    def test_get_all_cities_includes_known_static_cities(self):
+        cities = get_all_cities()
+
+        assert len(cities) > 0
+        for city in ("San Francisco, CA", "London, UK", "Tokyo, Japan", "Sydney, Australia"):
+            assert city in cities
+
+    async def test_get_city_coordinates_for_static_cities(self):
+        expected = {
+            "San Francisco, CA": (37.7749, -122.4194),
+            "London, UK": (51.5074, -0.1278),
+            "Tokyo, Japan": (35.6762, 139.6503),
+            "New York City, NY": (40.7128, -74.0060),
+        }
+
+        for city, (expected_lat, expected_lon) in expected.items():
+            coords, newly_added = await get_city_coordinates(city)
+
+            assert coords == (expected_lat, expected_lon)
+            assert newly_added is False
+
+
+class TestGeocodeThenForecastChain:
+    async def test_static_city_coordinates_feed_into_forecast(self, mock_nws_forecast):
+        coords, _ = await get_city_coordinates("San Francisco, CA")
+        lat, lng = coords
+        mock_nws_forecast(lat, lng, periods=[
+            {
+                "name": "Today",
+                "temperature": 65,
+                "temperatureUnit": "F",
+                "windSpeed": "8 mph",
+                "windDirection": "W",
+                "detailedForecast": "Sunny with fog clearing by afternoon.",
+            }
+        ])
+
         forecast = await get_forecast(lat, lng)
-        print(f"Forecast for San Francisco ({lat}, {lng}):")
-        print(forecast[:500] + "..." if len(forecast) > 500 else forecast)
 
-if __name__ == "__main__":
-    asyncio.run(test_city_lookup())
+        assert "Today" in forecast
+        assert "Sunny with fog clearing by afternoon." in forecast
+
+    async def test_newly_geocoded_city_feeds_into_forecast(
+        self, mock_geocode, mock_open_meteo_forecast
+    ):
+        mock_geocode(lat=64.1466, lon=-21.9426)  # Reykjavik, Iceland - not in MAJOR_CITIES
+        mock_open_meteo_forecast()
+
+        coords, newly_added = await get_city_coordinates("Reykjavik, Iceland")
+        assert newly_added is True
+        lat, lng = coords
+
+        forecast = await get_forecast(lat, lng)
+
+        assert "Current Weather" in forecast

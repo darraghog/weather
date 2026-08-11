@@ -3,32 +3,22 @@
 
 import pytest
 import json
-from web_server import app
-from cities import DYNAMIC_CITIES
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the Flask app."""
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
-
-
-@pytest.fixture(autouse=True)
-def clear_dynamic_cities():
-    """Clear dynamic cities before each test."""
-    DYNAMIC_CITIES.clear()
-    yield
-    DYNAMIC_CITIES.clear()
+def client(web_server_client):
+    """Alias for the shared web_server_client fixture (kept for readability below)."""
+    return web_server_client
 
 
 class TestDropdownRefresh:
     """Test that the dropdown menu updates after adding new cities."""
 
-    def test_galway_workflow(self, client):
+    def test_galway_workflow(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test the exact user workflow: Add Galway, then verify it's searchable."""
         test_city = "Galway, Ireland"
+        mock_geocode(lat=53.2707, lon=-9.0568)
+        mock_open_meteo_forecast()
 
         # Step 1: User types "Galway, Ireland" and submits forecast
         print("\n=== Step 1: User submits forecast for Galway ===")
@@ -65,9 +55,11 @@ class TestDropdownRefresh:
         assert test_city in matching_cities
         print(f"✓ Galway appears in filtered dropdown results")
 
-    def test_multiple_searches_after_adding_city(self, client):
+    def test_multiple_searches_after_adding_city(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test that newly added city appears in multiple search variations."""
         test_city = "Cork, Ireland"
+        mock_geocode(lat=51.8985, lon=-8.4756)
+        mock_open_meteo_forecast()
 
         # Add the city
         response1 = client.post(
@@ -96,9 +88,11 @@ class TestDropdownRefresh:
             assert test_city in matches, f"Search '{search_term}' should find {test_city}"
             print(f"✓ Search '{search_term}' found Cork")
 
-    def test_city_persists_across_multiple_api_calls(self, client):
+    def test_city_persists_across_multiple_api_calls(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test that dynamically added city remains available in subsequent API calls."""
         test_city = "Limerick, Ireland"
+        mock_geocode(lat=52.6638, lon=-8.6267)
+        mock_open_meteo_forecast()
 
         # Add city via forecast
         client.post(
@@ -114,9 +108,11 @@ class TestDropdownRefresh:
             assert test_city in cities, f"City should be in list on request {i+1}"
             print(f"✓ Request {i+1}: City still in list")
 
-    def test_second_forecast_request_shows_city_in_dropdown(self, client):
+    def test_second_forecast_request_shows_city_in_dropdown(self, client, mock_geocode, mock_open_meteo_forecast):
         """Test the complete workflow: add city, then search for it again."""
         test_city = "Waterford, Ireland"
+        mock_geocode(lat=52.2593, lon=-7.1101)
+        mock_open_meteo_forecast()
 
         # First request - adds the city
         print("\n=== First request ===")
