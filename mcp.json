@@ -10,8 +10,11 @@
       "env": {}
     },
     "weather-remote": {
-      "url": "https://carole-unrealizable-thermochemically.ngrok-free.dev/sse",
-      "transport": "sse"
+      "url": "https://carole-unrealizable-thermochemically.ngrok-free.dev/mcp",
+      "transport": "streamable-http",
+      "headers": {
+        "Authorization": "Bearer <REPLACE_WITH_WEATHER_MCP_TOKEN>"
+      }
     }
   }
 }

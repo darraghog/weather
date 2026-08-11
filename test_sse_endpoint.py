@@ -1,10 +1,12 @@
-"""Tests for the MCP tool layer exposed over SSE (unified_server.py mounts
-weather.mcp.sse_app()).
+"""Tests for the MCP tool layer exposed over HTTP (unified_server.py mounts
+weather.mcp.streamable_http_app()).
 
-Rather than requiring a live server and a real SSE connection, these tests
+Rather than requiring a live server and a real HTTP connection, these tests
 exercise the same FastMCP tool-dispatch path (registration + `call_tool`)
-in-process. That's what actually matters for correctness; the raw SSE
-transport plumbing is framework code (Starlette/FastMCP), not app logic.
+in-process. That's what actually matters for correctness; the raw transport
+plumbing is framework code (Starlette/FastMCP), not app logic. See
+test_mcp_http_endpoint.py for a regression test covering the app-specific
+route/lifespan wiring in unified_server.py itself.
 """
 import httpx
 
